@@ -22,17 +22,26 @@ func parseCaddyfile(h httpcaddyfile.Helper) (caddyhttp.MiddlewareHandler, error)
 func (h *Handler) UnmarshalCaddyfile(d *caddyfile.Dispenser) error {
 	d.Next() // consume directive name
 
+	hasSink := false
 	for d.NextBlock(0) {
 		switch d.Val() {
 		case "file":
+			if hasSink {
+				return d.Errf("file and console are mutually exclusive")
+			}
 			if !d.NextArg() {
 				return d.ArgErr()
 			}
 			h.SinkType = "file"
 			h.FilePath = d.Val()
+			hasSink = true
 
 		case "console":
+			if hasSink {
+				return d.Errf("file and console are mutually exclusive")
+			}
 			h.SinkType = "console"
+			hasSink = true
 
 		case "max_capture_bytes":
 			if !d.NextArg() {

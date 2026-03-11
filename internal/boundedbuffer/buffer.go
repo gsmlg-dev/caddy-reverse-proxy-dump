@@ -59,10 +59,3 @@ func (b *Buffer) Len() int {
 	defer b.mu.Unlock()
 	return len(b.buf)
 }
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}

@@ -20,7 +20,9 @@ var defaultRedactHeaders = []string{
 func redactHeaders(h http.Header, redactList []string) map[string][]string {
 	result := make(map[string][]string, len(h))
 	for k, v := range h {
-		result[k] = v
+		cpy := make([]string, len(v))
+		copy(cpy, v)
+		result[k] = cpy
 	}
 
 	for _, name := range redactList {

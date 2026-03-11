@@ -171,30 +171,36 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request, next caddyht
 	if isStreaming {
 		// Emit split records for SSE
 		// Request record (emitted immediately)
-		h.sink.Write(&LogRecord{
+		if err := h.sink.Write(&LogRecord{
 			Timestamp:  startTime,
 			RequestID:  requestID,
 			RecordType: "request",
 			Request:    reqRecord,
-		})
+		}); err != nil {
+			h.logger.Warn("failed to write request record", zap.String("request_id", requestID), zap.Error(err))
+		}
 		// Response record (emitted on stream close)
-		h.sink.Write(&LogRecord{
+		if err := h.sink.Write(&LogRecord{
 			Timestamp:  time.Now(),
 			RequestID:  requestID,
 			RecordType: "response",
 			DurationMs: &durationMs,
 			Response:   respRecord,
-		})
+		}); err != nil {
+			h.logger.Warn("failed to write response record", zap.String("request_id", requestID), zap.Error(err))
+		}
 	} else {
 		// Emit single exchange record
-		h.sink.Write(&LogRecord{
+		if err := h.sink.Write(&LogRecord{
 			Timestamp:  startTime,
 			RequestID:  requestID,
 			RecordType: "exchange",
 			DurationMs: &durationMs,
 			Request:    reqRecord,
 			Response:   respRecord,
-		})
+		}); err != nil {
+			h.logger.Warn("failed to write exchange record", zap.String("request_id", requestID), zap.Error(err))
+		}
 	}
 
 	return err

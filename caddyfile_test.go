@@ -76,6 +76,22 @@ func TestUnmarshalCaddyfile(t *testing.T) {
 			}`,
 			wantErr: true,
 		},
+		{
+			name: "file and console mutually exclusive",
+			input: `reverse_proxy_dump {
+				file /tmp/test.jsonl
+				console
+			}`,
+			wantErr: true,
+		},
+		{
+			name: "console and file mutually exclusive",
+			input: `reverse_proxy_dump {
+				console
+				file /tmp/test.jsonl
+			}`,
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {
