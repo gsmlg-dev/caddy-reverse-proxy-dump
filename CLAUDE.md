@@ -6,6 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Caddy HTTP handler middleware plugin (`http.handlers.reverse_proxy_dump`) that captures full HTTP request/response data (headers + bodies) for traffic passing through a reverse proxy. Output is JSONL to file or stdout. Filtering uses Caddy's native matcher syntax — no custom filter fields.
 
+Go package: `caddyreverseproxydump`
+
 The PRD lives at `docs/PRD.md` and is the authoritative design reference.
 
 ## Build & Test
@@ -31,12 +33,12 @@ go vet ./...
 
 The plugin sits before `reverse_proxy` in Caddy's handler chain and tees request/response bodies into bounded buffers without altering the proxied traffic.
 
-**Key flow:** Client -> Caddy matcher -> `reverse_proxy_dump` handler -> tee request body -> wrap ResponseWriter -> next handler (`reverse_proxy`) -> tee response body -> async emit LogRecord to sink channel -> background writer goroutine writes JSONL.
+**Key flow:** Client → Caddy matcher → `reverse_proxy_dump` handler → tee request body → wrap ResponseWriter → next handler (`reverse_proxy`) → tee response body → async emit LogRecord to sink channel → background writer goroutine writes JSONL.
 
-### Core files (per PRD repo layout)
+### Core files
 
 - `handler.go` — Module registration, `ServeHTTP`, implements `caddy.CleanerUpper`
-- `caddyfile.go` — Caddyfile directive parser
+- `caddyfile.go` — Caddyfile directive parser (`UnmarshalCaddyfile`)
 - `response_writer.go` — Tee ResponseWriter preserving `http.Flusher`, `http.Hijacker`, `io.ReaderFrom`, `Unwrap()`
 - `types.go` — `LogRecord`, `RequestRecord`, `ResponseRecord` structs
 - `sink.go` — `Sink` interface (`Write`, `Close`)
@@ -45,12 +47,26 @@ The plugin sits before `reverse_proxy` in Caddy's handler chain and tees request
 - `encoding.go` — Body encoding decision (text vs base64) based on Content-Type
 - `internal/boundedbuffer/` — Bounded `io.Writer` with truncation tracking
 
+### Caddyfile subdirectives
+
+Parsed in `caddyfile.go`. `file` and `console` are mutually exclusive sink types:
+
+```
+reverse_proxy_dump {
+    file <path>                    # JSONL output to file
+    console                        # JSONL output to stdout (default)
+    max_capture_bytes <int>        # default 1048576 (1 MiB)
+    redact_headers <header>...     # default: Authorization, Cookie, Set-Cookie
+    content_types <type>...        # body capture filter (empty = capture all)
+}
+```
+
 ### Key design invariants
 
 - **Fail open**: capture/write failures never block or break proxying
 - **Single writer goroutine per sink**: serializes writes, no file locking needed
 - **Bounded memory**: one bounded buffer (default 1 MiB) per active request
-- **Backpressure**: channel full (4096 buffer) -> drop record + warn, never block request goroutine
+- **Backpressure**: channel full (4096 buffer) → drop record + warn, never block request goroutine
 - **Graceful shutdown**: `caddy.CleanerUpper` drains channel before closing file handle
 - **No `http.Pusher`**: intentionally excluded (deprecated in browsers)
 
@@ -62,22 +78,21 @@ For `text/event-stream` responses, two records are emitted sharing the same `req
 
 ### Body encoding
 
-Text-safe types (`text/*`, `application/json`, `application/xml`, `application/*+json`, etc.) -> raw UTF-8 (`body_encoding: "text"`). Everything else -> base64.
+Text-safe types (`text/*`, `application/json`, `application/xml`, `application/*+json`, etc.) → raw UTF-8 (`body_encoding: "text"`). Everything else → base64.
 
 ### Request ID sourcing
 
-`{http.request.uuid}` -> `X-Request-Id` header -> generated `uuid.New()` fallback.
+`{http.request.uuid}` → `X-Request-Id` header → generated `uuid.New()` fallback.
 
-## Caddy module interfaces to implement
+## Caddy module interfaces implemented
 
-- `caddy.Module` (module info)
-- `caddy.Provisioner` (setup sink)
-- `caddy.Validator` (validate config — file/console mutual exclusion)
-- `caddy.CleanerUpper` (graceful shutdown)
+- `caddy.Module` / `caddy.Provisioner` / `caddy.Validator` / `caddy.CleanerUpper`
 - `caddyhttp.MiddlewareHandler` (`ServeHTTP`)
 - `caddyfile.Unmarshaler` (Caddyfile parsing)
 
-Register handler order: `order reverse_proxy_dump before reverse_proxy`
+Handler order: `order reverse_proxy_dump before reverse_proxy`
+
+Interface guards are at the bottom of `handler.go`.
 
 ## Git Commits
 
