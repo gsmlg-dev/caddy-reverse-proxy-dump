@@ -99,11 +99,15 @@ func TestHandlerServeHTTP(t *testing.T) {
 	if record.Request.Method != "POST" {
 		t.Errorf("expected POST, got %s", record.Request.Method)
 	}
-	if record.Request.Body != body {
-		t.Errorf("expected body %q, got %q", body, record.Request.Body)
+	reqBody, ok := record.Request.Body.(json.RawMessage)
+	if !ok {
+		t.Fatalf("expected json.RawMessage for request body, got %T", record.Request.Body)
 	}
-	if record.Request.BodyEncoding != "text" {
-		t.Errorf("expected text encoding, got %s", record.Request.BodyEncoding)
+	if string(reqBody) != body {
+		t.Errorf("expected body %q, got %q", body, string(reqBody))
+	}
+	if record.Request.BodyEncoding != "json" {
+		t.Errorf("expected json encoding, got %s", record.Request.BodyEncoding)
 	}
 	if record.Request.ContentType != "application/json" {
 		t.Errorf("expected application/json, got %s", record.Request.ContentType)
@@ -118,8 +122,12 @@ func TestHandlerServeHTTP(t *testing.T) {
 	if record.Response.Status != 200 {
 		t.Errorf("expected status 200, got %d", record.Response.Status)
 	}
-	if record.Response.Body != body {
-		t.Errorf("expected response body %q, got %q", body, record.Response.Body)
+	respBody, ok := record.Response.Body.(json.RawMessage)
+	if !ok {
+		t.Fatalf("expected json.RawMessage for response body, got %T", record.Response.Body)
+	}
+	if string(respBody) != body {
+		t.Errorf("expected response body %q, got %q", body, string(respBody))
 	}
 
 	// Check duration
@@ -239,14 +247,14 @@ func TestHandlerContentTypesFilter(t *testing.T) {
 		t.Fatalf("expected 1 record, got %d", len(records))
 	}
 
-	// Request body should be empty (content type not in filter)
-	if records[0].Request.Body != "" {
-		t.Errorf("expected empty request body, got %q", records[0].Request.Body)
+	// Request body should be nil (content type not in filter)
+	if records[0].Request.Body != nil {
+		t.Errorf("expected nil request body, got %v", records[0].Request.Body)
 	}
 
-	// Response body should be empty (content type not in filter)
-	if records[0].Response.Body != "" {
-		t.Errorf("expected empty response body, got %q", records[0].Response.Body)
+	// Response body should be nil (content type not in filter)
+	if records[0].Response.Body != nil {
+		t.Errorf("expected nil response body, got %v", records[0].Response.Body)
 	}
 }
 
@@ -279,8 +287,12 @@ func TestHandlerBodyTruncation(t *testing.T) {
 	if !records[0].Request.BodyTruncated {
 		t.Error("expected request body to be truncated")
 	}
-	if len(records[0].Request.Body) != 10 {
-		t.Errorf("expected truncated body len=10, got %d", len(records[0].Request.Body))
+	truncBody, ok := records[0].Request.Body.(string)
+	if !ok {
+		t.Fatalf("expected string body for text/plain, got %T", records[0].Request.Body)
+	}
+	if len(truncBody) != 10 {
+		t.Errorf("expected truncated body len=10, got %d", len(truncBody))
 	}
 }
 
@@ -331,8 +343,8 @@ func TestLogRecordJSONSerialization(t *testing.T) {
 				"Content-Type":  {"application/json"},
 				"Authorization": {"[REDACTED]"},
 			},
-			Body:          `{"model":"claude-opus-4-5"}`,
-			BodyEncoding:  "text",
+			Body:          json.RawMessage(`{"model":"claude-opus-4-5"}`),
+			BodyEncoding:  "json",
 			BodyTruncated: false,
 			ContentType:   "application/json",
 			ContentLength: 1234,
@@ -342,8 +354,8 @@ func TestLogRecordJSONSerialization(t *testing.T) {
 			Headers: map[string][]string{
 				"Content-Type": {"application/json"},
 			},
-			Body:         `{"id":"msg_01..."}`,
-			BodyEncoding: "text",
+			Body:         json.RawMessage(`{"id":"msg_01..."}`),
+			BodyEncoding: "json",
 			ContentType:  "application/json",
 		},
 	}

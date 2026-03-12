@@ -2,6 +2,7 @@ package caddyreverseproxydump
 
 import (
 	"encoding/base64"
+	"encoding/json"
 	"mime"
 	"strings"
 )
@@ -46,8 +47,24 @@ func isTextContentType(contentType string) bool {
 	return false
 }
 
-// encodeBody returns the encoded body string and the encoding name.
-func encodeBody(body []byte, contentType string) (string, string) {
+// isJSONContentType returns true if the content type is JSON.
+func isJSONContentType(contentType string) bool {
+	mediaType, _, _ := mime.ParseMediaType(contentType)
+	if mediaType == "application/json" {
+		return true
+	}
+	if strings.HasPrefix(mediaType, "application/") && strings.HasSuffix(mediaType, "+json") {
+		return true
+	}
+	return false
+}
+
+// encodeBody returns the encoded body and the encoding name.
+// JSON bodies are returned as json.RawMessage so they embed as raw JSON objects.
+func encodeBody(body []byte, contentType string) (any, string) {
+	if isJSONContentType(contentType) && json.Valid(body) {
+		return json.RawMessage(body), "json"
+	}
 	if isTextContentType(contentType) {
 		return string(body), "text"
 	}

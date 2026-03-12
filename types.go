@@ -21,7 +21,7 @@ type RequestRecord struct {
 	Proto         string              `json:"proto"`
 	RemoteAddr    string              `json:"remote_addr"`
 	Headers       map[string][]string `json:"headers"`
-	Body          string              `json:"body"`
+	Body          any                 `json:"body"`
 	BodyEncoding  string              `json:"body_encoding"`
 	BodyTruncated bool                `json:"body_truncated"`
 	ContentType   string              `json:"content_type"`
@@ -32,7 +32,7 @@ type RequestRecord struct {
 type ResponseRecord struct {
 	Status        int                 `json:"status"`
 	Headers       map[string][]string `json:"headers"`
-	Body          string              `json:"body"`
+	Body          any                 `json:"body"`
 	BodyEncoding  string              `json:"body_encoding"`
 	BodyTruncated bool                `json:"body_truncated"`
 	ContentType   string              `json:"content_type"`

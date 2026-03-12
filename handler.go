@@ -146,7 +146,11 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request, next caddyht
 
 	// Encode request body
 	if captureReqBody {
-		body, encoding := encodeBody(reqBuf.Bytes(), reqContentType)
+		rawBody := reqBuf.Bytes()
+		if decompressed, ok := decompressBody(rawBody, r.Header.Get("Content-Encoding")); ok {
+			rawBody = decompressed
+		}
+		body, encoding := encodeBody(rawBody, reqContentType)
 		reqRecord.Body = body
 		reqRecord.BodyEncoding = encoding
 		reqRecord.BodyTruncated = reqBuf.Truncated()
@@ -162,7 +166,11 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request, next caddyht
 		ContentType: respContentType,
 	}
 	if captureRespBody {
-		body, encoding := encodeBody(respBuf.Bytes(), respContentType)
+		rawBody := respBuf.Bytes()
+		if decompressed, ok := decompressBody(rawBody, teeWriter.Header().Get("Content-Encoding")); ok {
+			rawBody = decompressed
+		}
+		body, encoding := encodeBody(rawBody, respContentType)
 		respRecord.Body = body
 		respRecord.BodyEncoding = encoding
 		respRecord.BodyTruncated = respBuf.Truncated()

@@ -1,6 +1,7 @@
 package caddyreverseproxydump
 
 import (
+	"encoding/json"
 	"testing"
 )
 
@@ -38,11 +39,55 @@ func TestIsTextContentType(t *testing.T) {
 	}
 }
 
+func TestIsJSONContentType(t *testing.T) {
+	tests := []struct {
+		ct   string
+		want bool
+	}{
+		{"application/json", true},
+		{"application/json; charset=utf-8", true},
+		{"application/vnd.api+json", true},
+		{"text/plain", false},
+		{"application/xml", false},
+		{"", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.ct, func(t *testing.T) {
+			got := isJSONContentType(tt.ct)
+			if got != tt.want {
+				t.Errorf("isJSONContentType(%q) = %v, want %v", tt.ct, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestEncodeBody(t *testing.T) {
-	// Text encoding
-	body, enc := encodeBody([]byte("hello"), "application/json")
-	if body != "hello" || enc != "text" {
-		t.Errorf("expected text encoding, got body=%q enc=%q", body, enc)
+	// JSON encoding — valid JSON body with JSON content type
+	body, enc := encodeBody([]byte(`{"hello":"world"}`), "application/json")
+	if enc != "json" {
+		t.Errorf("expected json encoding, got %q", enc)
+	}
+	if _, ok := body.(json.RawMessage); !ok {
+		t.Errorf("expected json.RawMessage, got %T", body)
+	}
+
+	// JSON content type but invalid JSON — falls back to text
+	body, enc = encodeBody([]byte("not-json"), "application/json")
+	if enc != "text" {
+		t.Errorf("expected text encoding for invalid JSON, got %q", enc)
+	}
+	if s, ok := body.(string); !ok || s != "not-json" {
+		t.Errorf("expected string body, got %T %v", body, body)
+	}
+
+	// Text encoding — non-JSON text type
+	body, enc = encodeBody([]byte("hello"), "text/plain")
+	if enc != "text" {
+		t.Errorf("expected text encoding, got %q", enc)
+	}
+	if s, ok := body.(string); !ok || s != "hello" {
+		t.Errorf("expected string body, got %T %v", body, body)
 	}
 
 	// Base64 encoding
@@ -50,7 +95,7 @@ func TestEncodeBody(t *testing.T) {
 	if enc != "base64" {
 		t.Errorf("expected base64 encoding, got %q", enc)
 	}
-	if body != "iVBORw==" {
-		t.Errorf("unexpected base64: %q", body)
+	if s, ok := body.(string); !ok || s != "iVBORw==" {
+		t.Errorf("unexpected base64: %v", body)
 	}
 }
