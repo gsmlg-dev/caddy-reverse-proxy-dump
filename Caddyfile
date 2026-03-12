@@ -1,0 +1,15 @@
+{
+	order reverse_proxy_dump before reverse_proxy
+}
+
+:8080 {
+	reverse_proxy_dump {
+		file /tmp/proxy-dump.log
+		max_capture_bytes 1048576
+		redact_headers Authorization Cookie Set-Cookie X-Api-Key
+		content_types application/json text/event-stream text/html text/plain
+	}
+	reverse_proxy https://httpbin.org {
+		header_up Host httpbin.org
+	}
+}
